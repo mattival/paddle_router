@@ -80,3 +80,13 @@ You can place it behind your normal reverse proxy such as Nginx or an internal l
 - Replace the mock wind forecast with a real weather API
 - Swap the SVG demo map for a real tile-based map frontend
 - Move the server to FastAPI once dependencies are available
+
+## Change Management
+
+This repository now includes a lightweight documented change workflow:
+
+- Workflow guide: `docs/git-change-workflow.md`
+- Template: `docs/change-requests/change-request-template.md`
+- Current baseline record: `docs/change-requests/CR-000-baseline-mvp.md`
+
+Use that flow for significant feature, scope, API, or routing changes so the documentation and code stay aligned.
