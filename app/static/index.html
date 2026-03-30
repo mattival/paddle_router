@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Paddling Route Planner MVP</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <main class="map-panel">
+        <div class="map-header">
+          <div>
+            <p class="eyebrow">Demo Archipelago</p>
+            <h1>Paddling Route Planner</h1>
+          </div>
+          <button id="clearRouteButton" class="ghost-button">Clear Route</button>
+        </div>
+
+        <div class="map-frame">
+          <svg id="mapSvg" viewBox="0 0 1000 700" aria-label="Interactive paddling map"></svg>
+          <div id="mapToast" class="map-toast hidden"></div>
+        </div>
+
+        <div class="map-footer">
+          <div class="legend">
+            <span><i class="legend-swatch low"></i> Sheltered</span>
+            <span><i class="legend-swatch medium"></i> Moderate</span>
+            <span><i class="legend-swatch high"></i> Exposed</span>
+            <span><i class="legend-swatch channel"></i> Boating channel</span>
+          </div>
+          <p class="microcopy">
+            This MVP uses built-in demo marine data so the app runs end-to-end without external datasets.
+          </p>
+        </div>
+      </main>
+
+      <aside class="control-panel">
+        <section class="card">
+          <p class="eyebrow">Point Placement</p>
+          <div class="button-row">
+            <button id="modeStartButton" class="mode-button active" data-mode="start">Place Start</button>
+            <button id="modeEndButton" class="mode-button" data-mode="end">Place End</button>
+            <button id="modeWaypointButton" class="mode-button" data-mode="waypoint">Add Waypoint</button>
+          </div>
+          <p class="hint">Tap the map to place points. Drag markers to refine them.</p>
+          <div id="pointList" class="point-list"></div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <p class="eyebrow">Wind</p>
+              <h2>Conditions</h2>
+            </div>
+            <label class="toggle-row">
+              <span>Manual</span>
+              <input type="checkbox" id="manualWindToggle" />
+            </label>
+          </div>
+
+          <div class="field-grid">
+            <label>
+              <span>Direction</span>
+              <input id="windDirectionInput" type="number" min="0" max="359" step="1" />
+            </label>
+            <label>
+              <span>Speed (m/s)</span>
+              <input id="windSpeedInput" type="number" min="0" max="40" step="0.1" />
+            </label>
+          </div>
+          <p id="windMeta" class="hint">Forecast loads when a start point is set.</p>
+        </section>
+
+        <section class="card">
+          <p class="eyebrow">Trip Profile</p>
+          <label class="stacked-field">
+            <span>Paddling Speed (km/h)</span>
+            <input id="paddlingSpeedInput" type="range" min="3" max="8" value="5" step="0.5" />
+            <strong id="paddlingSpeedValue">5.0 km/h</strong>
+          </label>
+        </section>
+
+        <section class="card">
+          <p class="eyebrow">Routing Weights</p>
+          <div id="weightControls" class="weight-controls"></div>
+        </section>
+
+        <section class="card summary-card">
+          <p class="eyebrow">Route Summary</p>
+          <div class="summary-grid">
+            <div>
+              <span>Distance</span>
+              <strong id="distanceValue">-</strong>
+            </div>
+            <div>
+              <span>ETA</span>
+              <strong id="etaValue">-</strong>
+            </div>
+            <div>
+              <span>Wind</span>
+              <strong id="windValue">-</strong>
+            </div>
+            <div>
+              <span>Source</span>
+              <strong id="sourceValue">-</strong>
+            </div>
+          </div>
+          <div id="warningsList" class="warnings-list"></div>
+          <div id="errorBox" class="error-box hidden"></div>
+        </section>
+      </aside>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,2 @@
+# This MVP intentionally runs on Python's standard library only.
+# No external dependencies are required for local smoke testing.
