@@ -14,6 +14,7 @@
   --line-medium: #ffcf66;
   --line-exposed: #ff7b68;
   --channel: #f5f0c6;
+  --wind: #d8f4ff;
   --shadow: 0 22px 60px rgba(0, 0, 0, 0.22);
 }
 
@@ -38,7 +39,7 @@ input {
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 420px);
+  grid-template-columns: minmax(0, 1.95fr) minmax(320px, 390px);
   min-height: 100vh;
 }
 
@@ -60,6 +61,13 @@ input {
   gap: 0.75rem;
 }
 
+.header-actions {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .map-header h1,
 .card-header h2 {
   margin: 0.1rem 0 0;
@@ -79,7 +87,7 @@ input {
 .map-frame {
   position: relative;
   flex: 1;
-  min-height: 58vh;
+  min-height: 70vh;
   border-radius: 28px;
   overflow: hidden;
   box-shadow: var(--shadow);
@@ -94,6 +102,11 @@ input {
   height: 100%;
   display: block;
   touch-action: none;
+  cursor: grab;
+}
+
+#mapSvg.is-panning {
+  cursor: grabbing;
 }
 
 .map-toast {
@@ -148,6 +161,11 @@ input {
   background: var(--channel);
 }
 
+.legend-swatch.wind {
+  background: linear-gradient(90deg, transparent 0 35%, var(--wind) 35% 100%);
+  position: relative;
+}
+
 .microcopy,
 .hint {
   margin: 0.45rem 0 0;
@@ -169,6 +187,10 @@ input {
 
 .mode-button {
   flex: 1;
+}
+
+.map-action {
+  min-width: 2.7rem;
 }
 
 .mode-button.active,
@@ -304,6 +326,58 @@ input[type="range"] {
   margin-bottom: 1rem;
 }
 
+.wind-overlay {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.8rem 0.95rem;
+  border-radius: 18px;
+  background: rgba(7, 21, 29, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+}
+
+.wind-arrow-shell {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(216, 244, 255, 0.25);
+  background: radial-gradient(circle, rgba(216, 244, 255, 0.14), rgba(216, 244, 255, 0.03));
+}
+
+.wind-arrow {
+  width: 0;
+  height: 0;
+  border-left: 0.55rem solid transparent;
+  border-right: 0.55rem solid transparent;
+  border-bottom: 1.35rem solid var(--wind);
+  transform-origin: 50% 75%;
+  filter: drop-shadow(0 0 12px rgba(216, 244, 255, 0.3));
+}
+
+.wind-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.wind-copy strong {
+  font-size: 0.96rem;
+}
+
+.wind-copy span {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  max-width: 16rem;
+  line-height: 1.35;
+}
+
 .chart-water-label {
   fill: rgba(255, 255, 255, 0.42);
   font-size: 28px;
@@ -315,6 +389,12 @@ input[type="range"] {
 .grid-line {
   stroke: rgba(255, 255, 255, 0.08);
   stroke-width: 1;
+}
+
+.contour-line {
+  fill: none;
+  stroke: rgba(199, 239, 252, 0.12);
+  stroke-width: 2;
 }
 
 .land-shape {
@@ -329,6 +409,17 @@ input[type="range"] {
   opacity: 0.85;
   stroke-linecap: round;
   stroke-dasharray: 24 14;
+}
+
+.wind-stream {
+  fill: none;
+  stroke: rgba(216, 244, 255, 0.32);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+
+.wind-tip {
+  fill: rgba(216, 244, 255, 0.62);
 }
 
 .route-segment {
@@ -395,6 +486,10 @@ input[type="range"] {
   .card {
     border-radius: 22px;
   }
+
+  .map-frame {
+    min-height: 62vh;
+  }
 }
 
 @media (max-width: 640px) {
@@ -415,5 +510,11 @@ input[type="range"] {
   .summary-grid,
   .button-row {
     grid-template-columns: 1fr;
+  }
+
+  .wind-overlay {
+    left: 0.8rem;
+    right: 0.8rem;
+    top: 0.8rem;
   }
 }

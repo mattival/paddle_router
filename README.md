@@ -5,11 +5,13 @@ This is a runnable MVP for the paddling route planner described in the PRD and t
 ## What This MVP Includes
 
 - Interactive web UI with a marine-style demo map
+- Zoomable and pannable larger map canvas
 - Start point, end point, and draggable waypoints
 - Forecast wind mode and manual wind override
+- Wind direction visualization in the UI and on the map
 - Water-only routing over a built-in mock archipelago
 - Boating channel avoidance and perpendicular crossing preference
-- Shelter-aware and crosswind-aware route scoring
+- Shelter-aware and crosswind-aware route scoring with improved upwind cover checks
 - Route exposure visualization
 - Distance and estimated travel time summary
 - Mobile-friendly responsive layout
@@ -88,5 +90,6 @@ This repository now includes a lightweight documented change workflow:
 - Workflow guide: `docs/git-change-workflow.md`
 - Template: `docs/change-requests/change-request-template.md`
 - Current baseline record: `docs/change-requests/CR-000-baseline-mvp.md`
+- Active enhancement record: `docs/change-requests/CR-001-map-wind-coverage.md`
 
 Use that flow for significant feature, scope, API, or routing changes so the documentation and code stay aligned.

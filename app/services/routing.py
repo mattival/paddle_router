@@ -215,7 +215,14 @@ class Router:
         shoreline_score = self._shoreline_score(midpoint_point)
         speed_factor = clamp(float(effective_wind["speed_mps"]) / 12.0, 0.15, 1.4)
         crosswind_factor = math.sin(math.radians(wind_relative)) ** 2
-        exposure_score = clamp(crosswind_factor * speed_factor * (1.05 - 0.65 * shelter_score), 0.0, 1.0)
+        head_tail_relief = 1.0 - (0.22 * (1.0 - crosswind_factor))
+        shoreline_relief = 1.0 - (0.25 * shoreline_score)
+        shelter_relief = 1.08 - (0.78 * shelter_score)
+        exposure_score = clamp(
+            crosswind_factor * speed_factor * head_tail_relief * shoreline_relief * shelter_relief,
+            0.0,
+            1.0,
+        )
 
         channel_travel_penalty = 0.0
         channel_crossing_penalty = 0.0
@@ -280,13 +287,39 @@ class Router:
         return segments_intersect(start, end, channel.start, channel.end)
 
     def _shelter_score(self, point: LatLng, wind_from_deg: float) -> float:
-        ray_lengths = [250.0, 500.0, 900.0, 1400.0, 1800.0]
-        score = 0.0
-        for distance_m in ray_lengths:
-            sample = project_point(point, distance_m, wind_from_deg)
-            if any(point_in_polygon(sample, polygon) for polygon in self.provider.land_polygons):
-                score = max(score, 1.0 - (distance_m / 2000.0))
+        angles = [-42.0, -24.0, -10.0, 0.0, 10.0, 24.0, 42.0]
+        fetch_scores: list[float] = []
+        hits = 0
+
+        for angle in angles:
+            fetch_m = self._fetch_to_upwind_land(point, wind_from_deg + angle, max_distance_m=2400.0, step_m=80.0)
+            if fetch_m is not None:
+                hits += 1
+                fetch_scores.append(clamp(1.0 - (fetch_m / 2400.0), 0.0, 1.0))
+            else:
+                fetch_scores.append(0.0)
+
+        strongest_cover = max(fetch_scores, default=0.0)
+        average_cover = sum(fetch_scores) / max(1, len(fetch_scores))
+        coverage_ratio = hits / len(angles)
+        shoreline_bonus = self._shoreline_score(point) * 0.22
+        score = (strongest_cover * 0.45) + (average_cover * 0.35) + (coverage_ratio * 0.25) + shoreline_bonus
         return clamp(score, 0.0, 1.0)
+
+    def _fetch_to_upwind_land(
+        self,
+        point: LatLng,
+        bearing_deg_from_north: float,
+        max_distance_m: float,
+        step_m: float,
+    ) -> float | None:
+        distance_m = step_m
+        while distance_m <= max_distance_m:
+            sample = project_point(point, distance_m, bearing_deg_from_north)
+            if any(point_in_polygon(sample, polygon) for polygon in self.provider.land_polygons):
+                return distance_m
+            distance_m += step_m
+        return None
 
     def _shoreline_score(self, point: LatLng) -> float:
         nearest = math.inf

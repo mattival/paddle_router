@@ -14,11 +14,25 @@
             <p class="eyebrow">Demo Archipelago</p>
             <h1>Paddling Route Planner</h1>
           </div>
-          <button id="clearRouteButton" class="ghost-button">Clear Route</button>
+          <div class="header-actions">
+            <button id="zoomOutButton" class="ghost-button map-action">-</button>
+            <button id="zoomInButton" class="ghost-button map-action">+</button>
+            <button id="resetViewButton" class="ghost-button">Reset View</button>
+            <button id="clearRouteButton" class="ghost-button">Clear Route</button>
+          </div>
         </div>
 
         <div class="map-frame">
           <svg id="mapSvg" viewBox="0 0 1000 700" aria-label="Interactive paddling map"></svg>
+          <div id="windOverlay" class="wind-overlay hidden">
+            <div class="wind-arrow-shell">
+              <div id="windArrow" class="wind-arrow"></div>
+            </div>
+            <div class="wind-copy">
+              <strong id="windOverlayTitle">Wind pending</strong>
+              <span id="windOverlayText">Place a start point to load forecast wind.</span>
+            </div>
+          </div>
           <div id="mapToast" class="map-toast hidden"></div>
         </div>
 
@@ -28,9 +42,10 @@
             <span><i class="legend-swatch medium"></i> Moderate</span>
             <span><i class="legend-swatch high"></i> Exposed</span>
             <span><i class="legend-swatch channel"></i> Boating channel</span>
+            <span><i class="legend-swatch wind"></i> Wind from</span>
           </div>
           <p class="microcopy">
-            This MVP uses built-in demo marine data so the app runs end-to-end without external datasets.
+            Drag the map to pan, use the mouse wheel or zoom buttons to inspect detail, and tap to place route points.
           </p>
         </div>
       </main>
@@ -43,7 +58,7 @@
             <button id="modeEndButton" class="mode-button" data-mode="end">Place End</button>
             <button id="modeWaypointButton" class="mode-button" data-mode="waypoint">Add Waypoint</button>
           </div>
-          <p class="hint">Tap the map to place points. Drag markers to refine them.</p>
+          <p class="hint">Tap to place points, drag markers to refine them, and drag the map background to pan.</p>
           <div id="pointList" class="point-list"></div>
         </section>
 
