@@ -127,6 +127,20 @@ input {
   font-size: 0.95rem;
 }
 
+.calc-badge {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  padding: 0.68rem 0.92rem;
+  border-radius: 999px;
+  background: rgba(7, 21, 29, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
+  font-size: 0.9rem;
+  box-shadow: var(--shadow);
+  z-index: 2;
+}
+
 .hidden {
   display: none !important;
 }
@@ -335,7 +349,7 @@ input[type="range"] {
 
 .wind-overlay {
   position: absolute;
-  top: 1rem;
+  top: 4.25rem;
   right: 1rem;
   display: flex;
   align-items: center;
@@ -522,6 +536,6 @@ input[type="range"] {
   .wind-overlay {
     left: 0.8rem;
     right: 0.8rem;
-    top: 0.8rem;
+    top: 4.1rem;
   }
 }

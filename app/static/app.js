@@ -30,6 +30,7 @@ const state = {
   mapScale: 1,
   dragTarget: null,
   tapGesture: null,
+  isCalculating: false,
   pendingRouteTimer: null,
   staticMapMarkup: "",
 };
@@ -64,6 +65,11 @@ const windOverlay = document.getElementById("windOverlay");
 const windArrow = document.getElementById("windArrow");
 const windOverlayTitle = document.getElementById("windOverlayTitle");
 const windOverlayText = document.getElementById("windOverlayText");
+const calcBadge = document.getElementById("calcBadge");
+
+let windLayer = null;
+let routeLayer = null;
+let markerLayer = null;
 
 document.getElementById("clearRouteButton").addEventListener("click", clearRoute);
 document.getElementById("zoomInButton").addEventListener("click", () => zoomMap(1.2));
@@ -129,6 +135,7 @@ async function initialize() {
   state.mapData = await response.json();
   state.staticMapMarkup = buildStaticMapMarkup();
   applyMapScale();
+  setupSvgLayers();
   render();
   centerMapInitial();
   showToast("Place a start point on open water to begin.");
@@ -215,23 +222,32 @@ function toggleWindInputs() {
 }
 
 function render() {
-  renderMap();
+  renderMapLayers();
   renderPointList();
   updateSummary();
   updateWindOverlay();
+  updateCalculationBadge();
 }
 
-function renderMap() {
-  if (!state.mapData) {
+function setupSvgLayers() {
+  mapSvg.innerHTML = `
+    <g id="staticLayer">${state.staticMapMarkup}</g>
+    <g id="windLayer"></g>
+    <g id="routeLayer"></g>
+    <g id="markerLayer"></g>
+  `;
+  windLayer = document.getElementById("windLayer");
+  routeLayer = document.getElementById("routeLayer");
+  markerLayer = document.getElementById("markerLayer");
+}
+
+function renderMapLayers() {
+  if (!state.mapData || !windLayer || !routeLayer || !markerLayer) {
     return;
   }
-
-  const fragments = [];
-  fragments.push(state.staticMapMarkup);
-  fragments.push(buildWindStreams());
-  fragments.push(buildRouteMarkup());
-  fragments.push(buildMarkerMarkup());
-  mapSvg.innerHTML = fragments.join("");
+  windLayer.innerHTML = buildWindStreams();
+  routeLayer.innerHTML = buildRouteMarkup();
+  markerLayer.innerHTML = buildMarkerMarkup();
 }
 
 function buildStaticMapMarkup() {
@@ -424,7 +440,7 @@ function centerPoint() {
 
 function queueRouteUpdate() {
   window.clearTimeout(state.pendingRouteTimer);
-  state.pendingRouteTimer = window.setTimeout(updateRoute, 220);
+  state.pendingRouteTimer = window.setTimeout(updateRoute, 320);
 }
 
 async function updateRoute() {
@@ -435,6 +451,8 @@ async function updateRoute() {
     return;
   }
 
+  state.isCalculating = true;
+  updateCalculationBadge();
   if (state.wind.mode === "forecast") {
     await refreshForecastWind();
   }
@@ -467,6 +485,8 @@ async function updateRoute() {
   } catch (error) {
     state.routeResult = null;
     state.error = error.message;
+  } finally {
+    state.isCalculating = false;
   }
   render();
 }
@@ -534,6 +554,10 @@ function updateWindOverlay() {
   windOverlayText.textContent = `${state.wind.direction_deg} deg at ${state.wind.speed_mps} m/s${state.wind.source ? `, ${state.wind.source}` : ""}`;
 }
 
+function updateCalculationBadge() {
+  calcBadge.classList.toggle("hidden", !state.isCalculating);
+}
+
 function pointToWorld(point) {
   const { south, west, north, east } = state.mapData.bbox;
   const x = ((point.lng - west) / (east - west)) * MAP_WIDTH;
@@ -593,7 +617,7 @@ function handlePointerMove(event) {
     return;
   }
   assignDraggedPoint(screenToPoint(event.clientX, event.clientY));
-  render();
+  renderMapLayers();
 }
 
 function handlePointerUp(event) {
