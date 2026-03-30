@@ -1,8 +1,7 @@
 const MAP_WIDTH = 2200;
 const MAP_HEIGHT = 1600;
-const MIN_SCALE = 0.75;
-const MAX_SCALE = 4.2;
-const CLICK_DRAG_THRESHOLD = 8;
+const MIN_SCALE = 0.6;
+const MAX_SCALE = 2.8;
 
 const state = {
   mapData: null,
@@ -28,13 +27,8 @@ const state = {
     channel_crossing_perpendicularity: 2.0,
     shoreline_following: 1.0,
   },
+  mapScale: 1,
   dragTarget: null,
-  mapView: {
-    scale: 1.05,
-    translateX: -300,
-    translateY: -180,
-  },
-  pointerGesture: null,
   pendingRouteTimer: null,
 };
 
@@ -48,6 +42,7 @@ const weightMeta = [
 ];
 
 const mapSvg = document.getElementById("mapSvg");
+const mapScroll = document.getElementById("mapScroll");
 const pointList = document.getElementById("pointList");
 const distanceValue = document.getElementById("distanceValue");
 const etaValue = document.getElementById("etaValue");
@@ -69,9 +64,10 @@ const windOverlayTitle = document.getElementById("windOverlayTitle");
 const windOverlayText = document.getElementById("windOverlayText");
 
 document.getElementById("clearRouteButton").addEventListener("click", clearRoute);
-document.getElementById("zoomInButton").addEventListener("click", () => zoomAroundScreenPoint(1.2));
-document.getElementById("zoomOutButton").addEventListener("click", () => zoomAroundScreenPoint(1 / 1.2));
+document.getElementById("zoomInButton").addEventListener("click", () => zoomMap(1.2));
+document.getElementById("zoomOutButton").addEventListener("click", () => zoomMap(1 / 1.2));
 document.getElementById("resetViewButton").addEventListener("click", resetView);
+
 document.querySelectorAll(".mode-button").forEach((button) => {
   button.addEventListener("click", () => {
     state.placementMode = button.dataset.mode;
@@ -116,11 +112,11 @@ paddlingSpeedInput.addEventListener("input", () => {
   queueRouteUpdate();
 });
 
-mapSvg.addEventListener("wheel", (event) => {
-  event.preventDefault();
-  const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-  zoomAroundScreenPoint(factor, event.clientX, event.clientY);
-}, { passive: false });
+mapSvg.addEventListener("pointerdown", handlePointerDown);
+mapSvg.addEventListener("pointermove", handlePointerMove);
+mapSvg.addEventListener("pointerup", handlePointerUp);
+mapSvg.addEventListener("pointerleave", handlePointerUp);
+mapSvg.addEventListener("pointercancel", handlePointerUp);
 
 async function initialize() {
   buildWeightControls();
@@ -130,6 +126,7 @@ async function initialize() {
   const response = await fetch("/api/map-data");
   state.mapData = await response.json();
   render();
+  centerMapInitial();
   showToast("Place a start point on open water to begin.");
 }
 
@@ -146,10 +143,9 @@ function buildWeightControls() {
       <input id="${key}Input" type="range" min="0" max="4" step="0.1" value="${value}" />
     `;
     weightControls.appendChild(row);
-    const input = row.querySelector("input");
-    input.addEventListener("input", () => {
-      state.weights[key] = parseFloat(input.value);
-      document.getElementById(`${key}Value`).textContent = input.value;
+    row.querySelector("input").addEventListener("input", (event) => {
+      state.weights[key] = parseFloat(event.target.value);
+      document.getElementById(`${key}Value`).textContent = event.target.value;
       queueRouteUpdate();
     });
   });
@@ -167,10 +163,39 @@ function clearRoute() {
 }
 
 function resetView() {
-  state.mapView.scale = 1.05;
-  state.mapView.translateX = -300;
-  state.mapView.translateY = -180;
-  render();
+  state.mapScale = 1;
+  applyMapScale();
+  centerMapInitial();
+}
+
+function centerMapInitial() {
+  window.requestAnimationFrame(() => {
+    mapScroll.scrollLeft = Math.max(0, (mapScroll.scrollWidth - mapScroll.clientWidth) / 2);
+    mapScroll.scrollTop = Math.max(0, (mapScroll.scrollHeight - mapScroll.clientHeight) / 2);
+  });
+}
+
+function zoomMap(factor) {
+  const nextScale = clamp(state.mapScale * factor, MIN_SCALE, MAX_SCALE);
+  if (nextScale === state.mapScale) {
+    return;
+  }
+
+  const centerRatioX = (mapScroll.scrollLeft + (mapScroll.clientWidth / 2)) / Math.max(1, mapScroll.scrollWidth);
+  const centerRatioY = (mapScroll.scrollTop + (mapScroll.clientHeight / 2)) / Math.max(1, mapScroll.scrollHeight);
+
+  state.mapScale = nextScale;
+  applyMapScale();
+
+  window.requestAnimationFrame(() => {
+    mapScroll.scrollLeft = Math.max(0, (mapScroll.scrollWidth * centerRatioX) - (mapScroll.clientWidth / 2));
+    mapScroll.scrollTop = Math.max(0, (mapScroll.scrollHeight * centerRatioY) - (mapScroll.clientHeight / 2));
+  });
+}
+
+function applyMapScale() {
+  mapSvg.style.width = `${MAP_WIDTH * state.mapScale}px`;
+  mapSvg.style.height = `${MAP_HEIGHT * state.mapScale}px`;
 }
 
 function updateModeButtons() {
@@ -196,33 +221,30 @@ function renderMap() {
   if (!state.mapData) {
     return;
   }
+
   const { landPolygons, channels } = state.mapData;
   const fragments = [];
+  fragments.push(buildGrid());
+  fragments.push(buildContours());
+  fragments.push('<text class="chart-water-label" x="60" y="94">Outer Archipelago</text>');
+  fragments.push('<text class="chart-water-label" x="1450" y="1340">Sheltered Reach</text>');
+  fragments.push(buildWindStreams());
 
-  fragments.push(`
-    <g id="mapViewport" transform="translate(${state.mapView.translateX} ${state.mapView.translateY}) scale(${state.mapView.scale})">
-      ${buildGrid()}
-      ${buildContours()}
-      <text class="chart-water-label" x="60" y="94">Outer Archipelago</text>
-      <text class="chart-water-label" x="1450" y="1340">Sheltered Reach</text>
-      ${buildWindStreams()}
-      ${landPolygons.map((polygon) => `<polygon class="land-shape" points="${polygon.map((point) => pointToWorld(point).join(",")).join(" ")}" />`).join("")}
-      ${channels.map((channel) => {
-        const [x1, y1] = pointToWorld(channel.start);
-        const [x2, y2] = pointToWorld(channel.end);
-        return `<line class="channel-line" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />`;
-      }).join("")}
-      ${buildRouteMarkup()}
-      ${buildMarkerMarkup()}
-    </g>
-  `);
+  landPolygons.forEach((polygon) => {
+    fragments.push(
+      `<polygon class="land-shape" points="${polygon.map((point) => pointToWorld(point).join(",")).join(" ")}" />`,
+    );
+  });
 
+  channels.forEach((channel) => {
+    const [x1, y1] = pointToWorld(channel.start);
+    const [x2, y2] = pointToWorld(channel.end);
+    fragments.push(`<line class="channel-line" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />`);
+  });
+
+  fragments.push(buildRouteMarkup());
+  fragments.push(buildMarkerMarkup());
   mapSvg.innerHTML = fragments.join("");
-  mapSvg.onpointerdown = handlePointerDown;
-  mapSvg.onpointermove = handlePointerMove;
-  mapSvg.onpointerup = handlePointerUp;
-  mapSvg.onpointerleave = handlePointerUp;
-  mapSvg.classList.toggle("is-panning", Boolean(state.pointerGesture && state.pointerGesture.panning));
 }
 
 function buildGrid() {
@@ -253,8 +275,6 @@ function buildWindStreams() {
     return "";
   }
   const windTo = (state.wind.direction_deg + 180) % 360;
-  const centerX = MAP_WIDTH / 2;
-  const centerY = MAP_HEIGHT / 2;
   const rows = [
     [300, 260],
     [620, 420],
@@ -262,17 +282,19 @@ function buildWindStreams() {
     [1380, 830],
     [1760, 1050],
   ];
-  return rows.map(([x, y], index) => {
-    const length = 150 + index * 18;
-    const angle = windTo - 90;
-    const opacityScale = 0.22 + index * 0.05;
-    return `
-      <g transform="translate(${x} ${y}) rotate(${angle})">
-        <path class="wind-stream" style="opacity:${opacityScale}" d="M 0 0 C ${length * 0.25} -18, ${length * 0.68} -18, ${length} 0" />
-        <path class="wind-tip" style="opacity:${opacityScale + 0.12}" d="M ${length - 12} -8 L ${length + 16} 0 L ${length - 12} 8 Z" />
-      </g>
-    `;
-  }).join("");
+  return rows
+    .map(([x, y], index) => {
+      const length = 150 + index * 18;
+      const angle = windTo - 90;
+      const opacityScale = 0.22 + (index * 0.05);
+      return `
+        <g transform="translate(${x} ${y}) rotate(${angle})">
+          <path class="wind-stream" style="opacity:${opacityScale}" d="M 0 0 C ${length * 0.25} -18, ${length * 0.68} -18, ${length} 0" />
+          <path class="wind-tip" style="opacity:${opacityScale + 0.12}" d="M ${length - 12} -8 L ${length + 16} 0 L ${length - 12} 8 Z" />
+        </g>
+      `;
+    })
+    .join("");
 }
 
 function buildRouteMarkup() {
@@ -281,28 +303,33 @@ function buildRouteMarkup() {
   }
   const coordinates = state.routeResult.route.coordinates;
   const segments = state.routeResult.segments || [];
-  return coordinates.slice(0, -1).map((coordinate, index) => {
-    const next = coordinates[index + 1];
-    const start = pointToWorld({ lat: coordinate[1], lng: coordinate[0] });
-    const end = pointToWorld({ lat: next[1], lng: next[0] });
-    return `
-      <line class="route-glow" x1="${start[0]}" y1="${start[1]}" x2="${end[0]}" y2="${end[1]}" />
-      <line class="route-segment" stroke="${segmentColor(segments[index]?.exposure_score ?? 0)}" x1="${start[0]}" y1="${start[1]}" x2="${end[0]}" y2="${end[1]}" />
-    `;
-  }).join("");
+  return coordinates
+    .slice(0, -1)
+    .map((coordinate, index) => {
+      const next = coordinates[index + 1];
+      const start = pointToWorld({ lat: coordinate[1], lng: coordinate[0] });
+      const end = pointToWorld({ lat: next[1], lng: next[0] });
+      return `
+        <line class="route-glow" x1="${start[0]}" y1="${start[1]}" x2="${end[0]}" y2="${end[1]}" />
+        <line class="route-segment" stroke="${segmentColor(segments[index]?.exposure_score ?? 0)}" x1="${start[0]}" y1="${start[1]}" x2="${end[0]}" y2="${end[1]}" />
+      `;
+    })
+    .join("");
 }
 
 function buildMarkerMarkup() {
-  return buildMarkers().map((marker) => {
-    const [x, y] = pointToWorld(marker.point);
-    return `
-      <g class="marker marker-${marker.kind}" data-kind="${marker.kind}" data-index="${marker.index}" transform="translate(${x} ${y})">
-        <circle class="marker-ring" r="16"></circle>
-        <circle class="marker-core" r="10"></circle>
-        <text class="marker-label" y="1">${marker.label}</text>
-      </g>
-    `;
-  }).join("");
+  return buildMarkers()
+    .map((marker) => {
+      const [x, y] = pointToWorld(marker.point);
+      return `
+        <g class="marker marker-${marker.kind}" data-kind="${marker.kind}" data-index="${marker.index}" transform="translate(${x} ${y})">
+          <circle class="marker-ring" r="16"></circle>
+          <circle class="marker-core" r="10"></circle>
+          <text class="marker-label" y="1">${marker.label}</text>
+        </g>
+      `;
+    })
+    .join("");
 }
 
 function buildMarkers() {
@@ -325,18 +352,20 @@ function renderPointList() {
     items.push(pointRow("Start", state.start, null));
   }
   state.waypoints.forEach((point, index) => {
-    items.push(pointRow(`Waypoint ${index + 1}`, point, () => {
-      state.waypoints.splice(index, 1);
-      queueRouteUpdate();
-      render();
-    }));
+    items.push(
+      pointRow(`Waypoint ${index + 1}`, point, () => {
+        state.waypoints.splice(index, 1);
+        queueRouteUpdate();
+        render();
+      }),
+    );
   });
   if (state.end) {
     items.push(pointRow("End", state.end, null));
   }
 
   if (items.length === 0) {
-    pointList.innerHTML = `<p class="hint">No points placed yet.</p>`;
+    pointList.innerHTML = '<p class="hint">No points placed yet.</p>';
     return;
   }
 
@@ -422,11 +451,30 @@ async function updateRoute() {
     }
     state.routeResult = body;
     state.error = "";
+    focusOnRouteIfNeeded();
   } catch (error) {
     state.routeResult = null;
     state.error = error.message;
   }
   render();
+}
+
+function focusOnRouteIfNeeded() {
+  if (!state.routeResult || !state.routeResult.route.coordinates.length) {
+    return;
+  }
+  const xs = state.routeResult.route.coordinates.map((coordinate) => pointToWorld({ lat: coordinate[1], lng: coordinate[0] })[0]);
+  const ys = state.routeResult.route.coordinates.map((coordinate) => pointToWorld({ lat: coordinate[1], lng: coordinate[0] })[1]);
+  const padding = 140 * state.mapScale;
+  const minX = Math.max(0, Math.min(...xs) - padding);
+  const maxX = Math.min(MAP_WIDTH * state.mapScale, Math.max(...xs) + padding);
+  const minY = Math.max(0, Math.min(...ys) - padding);
+  const maxY = Math.min(MAP_HEIGHT * state.mapScale, Math.max(...ys) + padding);
+
+  window.requestAnimationFrame(() => {
+    mapScroll.scrollLeft = Math.max(0, minX - ((mapScroll.clientWidth - (maxX - minX)) / 2));
+    mapScroll.scrollTop = Math.max(0, minY - ((mapScroll.clientHeight - (maxY - minY)) / 2));
+  });
 }
 
 function updateSummary() {
@@ -448,7 +496,8 @@ function updateSummary() {
   } else {
     distanceValue.textContent = "-";
     etaValue.textContent = "-";
-    windValue.textContent = state.wind.direction_deg !== null ? `${state.wind.direction_deg} deg / ${state.wind.speed_mps} m/s` : "-";
+    windValue.textContent =
+      state.wind.direction_deg !== null ? `${state.wind.direction_deg} deg / ${state.wind.speed_mps} m/s` : "-";
     sourceValue.textContent = state.wind.mode;
     warningsList.innerHTML = "";
   }
@@ -475,42 +524,24 @@ function updateWindOverlay() {
 
 function pointToWorld(point) {
   const { south, west, north, east } = state.mapData.bbox;
-  const x = ((point.lng - west) / (east - west)) * MAP_WIDTH;
-  const y = MAP_HEIGHT - (((point.lat - south) / (north - south)) * MAP_HEIGHT);
+  const x = ((point.lng - west) / (east - west)) * MAP_WIDTH * state.mapScale;
+  const y = (MAP_HEIGHT - (((point.lat - south) / (north - south)) * MAP_HEIGHT)) * state.mapScale;
   return [x, y];
 }
 
 function worldToPoint(worldX, worldY) {
   const { south, west, north, east } = state.mapData.bbox;
   return {
-    lng: west + (worldX / MAP_WIDTH) * (east - west),
-    lat: south + ((MAP_HEIGHT - worldY) / MAP_HEIGHT) * (north - south),
+    lng: west + ((worldX / state.mapScale) / MAP_WIDTH) * (east - west),
+    lat: south + (((MAP_HEIGHT - (worldY / state.mapScale)) / MAP_HEIGHT) * (north - south)),
   };
 }
 
-function screenToWorld(clientX, clientY) {
+function screenToPoint(clientX, clientY) {
   const rect = mapSvg.getBoundingClientRect();
-  const svgX = (clientX - rect.left) * (1000 / rect.width);
-  const svgY = (clientY - rect.top) * (700 / rect.height);
-  return {
-    x: (svgX - state.mapView.translateX) / state.mapView.scale,
-    y: (svgY - state.mapView.translateY) / state.mapView.scale,
-  };
-}
-
-function zoomAroundScreenPoint(factor, clientX = null, clientY = null) {
-  const rect = mapSvg.getBoundingClientRect();
-  const anchorX = clientX ?? rect.left + rect.width / 2;
-  const anchorY = clientY ?? rect.top + rect.height / 2;
-  const before = screenToWorld(anchorX, anchorY);
-  state.mapView.scale = clamp(state.mapView.scale * factor, MIN_SCALE, MAX_SCALE);
-  const afterScreenX = (before.x * state.mapView.scale) + state.mapView.translateX;
-  const afterScreenY = (before.y * state.mapView.scale) + state.mapView.translateY;
-  const targetSvgX = (anchorX - rect.left) * (1000 / rect.width);
-  const targetSvgY = (anchorY - rect.top) * (700 / rect.height);
-  state.mapView.translateX += targetSvgX - afterScreenX;
-  state.mapView.translateY += targetSvgY - afterScreenY;
-  render();
+  const svgX = clientX - rect.left;
+  const svgY = clientY - rect.top;
+  return worldToPoint(svgX, svgY);
 }
 
 function segmentColor(score) {
@@ -529,85 +560,45 @@ function getCssVar(name) {
 
 function handlePointerDown(event) {
   const markerGroup = event.target.closest(".marker");
-  if (markerGroup) {
-    state.dragTarget = {
-      kind: markerGroup.dataset.kind,
-      index: parseInt(markerGroup.dataset.index || "0", 10),
-    };
-    mapSvg.setPointerCapture(event.pointerId);
+  if (!markerGroup) {
     return;
   }
-
-  state.pointerGesture = {
-    pointerId: event.pointerId,
-    startClientX: event.clientX,
-    startClientY: event.clientY,
-    startTranslateX: state.mapView.translateX,
-    startTranslateY: state.mapView.translateY,
-    moved: false,
-    panning: false,
+  state.dragTarget = {
+    kind: markerGroup.dataset.kind,
+    index: parseInt(markerGroup.dataset.index || "0", 10),
   };
   mapSvg.setPointerCapture(event.pointerId);
 }
 
 function handlePointerMove(event) {
-  if (state.dragTarget) {
-    const world = screenToWorld(event.clientX, event.clientY);
-    const point = worldToPoint(world.x, world.y);
-    if (!isWaterPoint(point)) {
-      return;
-    }
-    assignDraggedPoint(point);
-    render();
+  if (!state.dragTarget) {
     return;
   }
-
-  if (!state.pointerGesture) {
-    return;
-  }
-
-  const deltaX = event.clientX - state.pointerGesture.startClientX;
-  const deltaY = event.clientY - state.pointerGesture.startClientY;
-  const distance = Math.hypot(deltaX, deltaY);
-  if (distance > CLICK_DRAG_THRESHOLD) {
-    state.pointerGesture.moved = true;
-    state.pointerGesture.panning = true;
-    state.mapView.translateX = state.pointerGesture.startTranslateX + (deltaX * (1000 / mapSvg.getBoundingClientRect().width));
-    state.mapView.translateY = state.pointerGesture.startTranslateY + (deltaY * (700 / mapSvg.getBoundingClientRect().height));
-    render();
-  }
+  assignDraggedPoint(screenToPoint(event.clientX, event.clientY));
+  render();
 }
 
 function handlePointerUp(event) {
-  if (state.dragTarget) {
-    const world = screenToWorld(event.clientX, event.clientY);
-    const point = worldToPoint(world.x, world.y);
-    assignDraggedPoint(point);
-    state.dragTarget = null;
-    queueRouteUpdate();
-    render();
-    return;
-  }
-
-  if (!state.pointerGesture) {
-    return;
-  }
-  const gesture = state.pointerGesture;
-  state.pointerGesture = null;
-  if (!gesture.moved) {
+  if (!state.dragTarget) {
+    if (event.target.closest(".marker")) {
+      return;
+    }
     placePointFromScreen(event.clientX, event.clientY);
-  } else {
-    render();
+    return;
   }
+  assignDraggedPoint(screenToPoint(event.clientX, event.clientY));
+  state.dragTarget = null;
+  queueRouteUpdate();
+  render();
 }
 
 function placePointFromScreen(clientX, clientY) {
-  const world = screenToWorld(clientX, clientY);
-  const point = worldToPoint(world.x, world.y);
+  const point = screenToPoint(clientX, clientY);
   if (!isWaterPoint(point)) {
     showToast("That point is on land. Pick open water instead.");
     return;
   }
+
   if (state.placementMode === "start") {
     state.start = point;
     showToast("Start point placed.");
@@ -621,6 +612,7 @@ function placePointFromScreen(clientX, clientY) {
     state.waypoints.push(point);
     showToast(`Waypoint ${state.waypoints.length} added.`);
   }
+
   render();
   queueRouteUpdate();
 }
@@ -653,13 +645,18 @@ function pointInPolygon(point, polygon) {
     const yi = polygon[i].lat;
     const xj = polygon[j].lng;
     const yj = polygon[j].lat;
-    const intersect = yi > point.lat !== yj > point.lat
-      && point.lng < ((xj - xi) * (point.lat - yi)) / ((yj - yi) || 1e-12) + xi;
+    const intersect =
+      yi > point.lat !== yj > point.lat
+      && point.lng < (((xj - xi) * (point.lat - yi)) / ((yj - yi) || 1e-12)) + xi;
     if (intersect) {
       inside = !inside;
     }
   }
   return inside;
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function cardinalDirection(directionDeg) {

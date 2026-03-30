@@ -23,7 +23,9 @@
         </div>
 
         <div class="map-frame">
-          <svg id="mapSvg" viewBox="0 0 1000 700" aria-label="Interactive paddling map"></svg>
+          <div id="mapScroll" class="map-scroll">
+            <svg id="mapSvg" viewBox="0 0 2200 1600" aria-label="Interactive paddling map"></svg>
+          </div>
           <div id="windOverlay" class="wind-overlay hidden">
             <div class="wind-arrow-shell">
               <div id="windArrow" class="wind-arrow"></div>
@@ -45,7 +47,7 @@
             <span><i class="legend-swatch wind"></i> Wind from</span>
           </div>
           <p class="microcopy">
-            Drag the map to pan, use the mouse wheel or zoom buttons to inspect detail, and tap to place route points.
+            Scroll the map natively, use the zoom buttons to inspect detail, and tap to place route points.
           </p>
         </div>
       </main>
@@ -58,7 +60,7 @@
             <button id="modeEndButton" class="mode-button" data-mode="end">Place End</button>
             <button id="modeWaypointButton" class="mode-button" data-mode="waypoint">Add Waypoint</button>
           </div>
-          <p class="hint">Tap to place points, drag markers to refine them, and drag the map background to pan.</p>
+          <p class="hint">Tap to place points, drag markers to refine them, and scroll the map to navigate.</p>
           <div id="pointList" class="point-list"></div>
         </section>
 
