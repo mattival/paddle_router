@@ -24,12 +24,13 @@
 
 body {
   margin: 0;
-  min-height: 100vh;
+  height: 100vh;
   font-family: "Trebuchet MS", "Avenir Next", "Segoe UI", sans-serif;
   color: var(--text-main);
   background:
     radial-gradient(circle at top left, rgba(126, 197, 173, 0.18), transparent 26rem),
     linear-gradient(145deg, #07151d, #0f2f3d 55%, #0b202d);
+  overflow: hidden;
 }
 
 button,
@@ -40,7 +41,7 @@ input {
 .app-shell {
   display: grid;
   grid-template-columns: minmax(0, 1.95fr) minmax(320px, 390px);
-  min-height: 100vh;
+  height: 100vh;
 }
 
 .map-panel {
@@ -48,6 +49,7 @@ input {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+  min-height: 0;
 }
 
 .map-header,
@@ -87,14 +89,12 @@ input {
 .map-frame {
   position: relative;
   flex: 1;
-  min-height: 70vh;
+  min-height: 0;
   border-radius: 28px;
   overflow: hidden;
   box-shadow: var(--shadow);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background:
-    radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.08), transparent 14rem),
-    linear-gradient(180deg, var(--water-light), var(--water-mid) 38%, var(--water-deep));
+  background: #0f5c72;
 }
 
 .map-scroll {
@@ -107,8 +107,8 @@ input {
 }
 
 #mapSvg {
-  width: 2200px;
-  height: 1600px;
+  width: 3600px;
+  height: 2600px;
   display: block;
   touch-action: auto;
   cursor: crosshair;
@@ -211,6 +211,8 @@ input {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+  min-height: 0;
+  overflow: auto;
 }
 
 .card {
@@ -357,12 +359,11 @@ input[type="range"] {
 }
 
 .wind-arrow {
-  width: 0;
-  height: 0;
-  border-left: 0.55rem solid transparent;
-  border-right: 0.55rem solid transparent;
-  border-bottom: 1.35rem solid var(--wind);
-  transform-origin: 50% 75%;
+  width: 1.1rem;
+  height: 1.4rem;
+  background: var(--wind);
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+  transform-origin: 50% 60%;
   filter: drop-shadow(0 0 12px rgba(216, 244, 255, 0.3));
 }
 
@@ -478,6 +479,7 @@ input[type="range"] {
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 
   .map-panel {
@@ -493,7 +495,7 @@ input[type="range"] {
   }
 
   .map-frame {
-    min-height: 62vh;
+    min-height: 58vh;
   }
 }
 
@@ -503,7 +505,7 @@ input[type="range"] {
   }
 
   .map-frame {
-    min-height: 52vh;
+    min-height: 50vh;
     border-radius: 24px;
   }
 

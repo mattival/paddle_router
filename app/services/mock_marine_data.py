@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 
 from app.models import LatLng
 from app.services.geometry import point_in_polygon
@@ -27,10 +28,10 @@ class Channel:
 class MockMarineDataProvider:
     def __init__(self) -> None:
         self.bbox = {
-            "south": 60.105,
-            "west": 24.84,
-            "north": 60.235,
-            "east": 25.08,
+            "south": 60.098,
+            "west": 24.82,
+            "north": 60.242,
+            "east": 25.105,
         }
         self.land_polygons = [
             [
@@ -74,6 +75,28 @@ class MockMarineDataProvider:
                 LatLng(60.158, 24.883),
             ],
         ]
+        self.land_polygons.extend(
+            [
+                self._island(60.214, 24.945, 0.0075, 0.0105, 0.2),
+                self._island(60.222, 24.964, 0.0048, 0.0068, 0.7),
+                self._island(60.212, 24.984, 0.0036, 0.0052, 1.1),
+                self._island(60.200, 24.952, 0.0034, 0.0041, 0.3),
+                self._island(60.187, 24.922, 0.0045, 0.0055, 0.6),
+                self._island(60.169, 24.906, 0.0038, 0.0048, 1.5),
+                self._island(60.152, 24.900, 0.0032, 0.0046, 0.9),
+                self._island(60.146, 24.927, 0.0028, 0.0039, 1.2),
+                self._island(60.162, 24.994, 0.0039, 0.0056, 0.35),
+                self._island(60.176, 25.040, 0.0035, 0.0047, 1.05),
+                self._island(60.163, 25.053, 0.0046, 0.0065, 0.55),
+                self._island(60.149, 25.069, 0.0038, 0.0048, 0.15),
+                self._island(60.131, 24.946, 0.0029, 0.0043, 0.85),
+                self._island(60.121, 24.968, 0.0024, 0.0031, 0.45),
+                self._island(60.118, 24.992, 0.0025, 0.0036, 1.25),
+                self._island(60.205, 25.045, 0.0044, 0.0054, 0.92),
+                self._island(60.228, 25.022, 0.0031, 0.0042, 0.15),
+                self._island(60.232, 24.919, 0.0034, 0.0051, 0.67),
+            ]
+        )
         self.channels = [
             Channel(
                 name="West Fairway",
@@ -88,6 +111,13 @@ class MockMarineDataProvider:
                 end=LatLng(60.224, 25.056),
                 width_m=180.0,
                 direction_deg=35.0,
+            ),
+            Channel(
+                name="Outer Passage",
+                start=LatLng(60.104, 24.858),
+                end=LatLng(60.239, 24.907),
+                width_m=160.0,
+                direction_deg=20.0,
             ),
         ]
 
@@ -114,3 +144,23 @@ class MockMarineDataProvider:
                 "Routing logic is real but data is mocked so the app runs end-to-end without external services.",
             ],
         }
+
+    def _island(
+        self,
+        center_lat: float,
+        center_lng: float,
+        lat_radius: float,
+        lng_radius: float,
+        angle_offset: float,
+    ) -> list[LatLng]:
+        polygon: list[LatLng] = []
+        for index in range(7):
+            angle = angle_offset + ((math.pi * 2.0 * index) / 7.0)
+            radius_scale = 0.82 + (0.22 * math.sin((index * 1.7) + angle_offset))
+            polygon.append(
+                LatLng(
+                    center_lat + (math.sin(angle) * lat_radius * radius_scale),
+                    center_lng + (math.cos(angle) * lng_radius * radius_scale),
+                )
+            )
+        return polygon

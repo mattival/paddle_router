@@ -1,5 +1,5 @@
-const MAP_WIDTH = 2200;
-const MAP_HEIGHT = 1600;
+const MAP_WIDTH = 3600;
+const MAP_HEIGHT = 2600;
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 2.8;
 
@@ -29,7 +29,9 @@ const state = {
   },
   mapScale: 1,
   dragTarget: null,
+  tapGesture: null,
   pendingRouteTimer: null,
+  staticMapMarkup: "",
 };
 
 const weightMeta = [
@@ -125,6 +127,8 @@ async function initialize() {
   paddlingSpeedValue.textContent = `${state.paddlingSpeedKph.toFixed(1)} km/h`;
   const response = await fetch("/api/map-data");
   state.mapData = await response.json();
+  state.staticMapMarkup = buildStaticMapMarkup();
+  applyMapScale();
   render();
   centerMapInitial();
   showToast("Place a start point on open water to begin.");
@@ -222,13 +226,21 @@ function renderMap() {
     return;
   }
 
+  const fragments = [];
+  fragments.push(state.staticMapMarkup);
+  fragments.push(buildWindStreams());
+  fragments.push(buildRouteMarkup());
+  fragments.push(buildMarkerMarkup());
+  mapSvg.innerHTML = fragments.join("");
+}
+
+function buildStaticMapMarkup() {
   const { landPolygons, channels } = state.mapData;
   const fragments = [];
   fragments.push(buildGrid());
   fragments.push(buildContours());
-  fragments.push('<text class="chart-water-label" x="60" y="94">Outer Archipelago</text>');
-  fragments.push('<text class="chart-water-label" x="1450" y="1340">Sheltered Reach</text>');
-  fragments.push(buildWindStreams());
+  fragments.push('<text class="chart-water-label" x="140" y="160">Outer Archipelago</text>');
+  fragments.push('<text class="chart-water-label" x="2510" y="2140">Sheltered Reach</text>');
 
   landPolygons.forEach((polygon) => {
     fragments.push(
@@ -242,19 +254,17 @@ function renderMap() {
     fragments.push(`<line class="channel-line" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />`);
   });
 
-  fragments.push(buildRouteMarkup());
-  fragments.push(buildMarkerMarkup());
-  mapSvg.innerHTML = fragments.join("");
+  return fragments.join("");
 }
 
 function buildGrid() {
   const lines = [];
-  for (let index = 1; index < 12; index += 1) {
-    const x = (MAP_WIDTH / 12) * index;
+  for (let index = 1; index < 18; index += 1) {
+    const x = (MAP_WIDTH / 18) * index;
     lines.push(`<line class="grid-line" x1="${x}" y1="0" x2="${x}" y2="${MAP_HEIGHT}" />`);
   }
-  for (let index = 1; index < 9; index += 1) {
-    const y = (MAP_HEIGHT / 9) * index;
+  for (let index = 1; index < 13; index += 1) {
+    const y = (MAP_HEIGHT / 13) * index;
     lines.push(`<line class="grid-line" x1="0" y1="${y}" x2="${MAP_WIDTH}" y2="${y}" />`);
   }
   return lines.join("");
@@ -262,10 +272,11 @@ function buildGrid() {
 
 function buildContours() {
   const paths = [
-    "M 80 1340 C 420 1190, 780 1280, 1120 1160 S 1720 980, 2100 1080",
-    "M 140 1120 C 450 980, 790 1020, 1120 940 S 1660 760, 2060 840",
-    "M 180 860 C 510 760, 800 760, 1140 690 S 1700 540, 2100 630",
-    "M 240 620 C 520 560, 820 530, 1080 460 S 1640 360, 1980 420",
+    "M 120 2240 C 640 1990, 1180 2080, 1720 1900 S 2740 1580, 3480 1710",
+    "M 180 1860 C 710 1660, 1240 1710, 1810 1560 S 2830 1280, 3440 1410",
+    "M 240 1480 C 780 1320, 1280 1330, 1820 1200 S 2860 930, 3430 1010",
+    "M 340 1130 C 820 1030, 1320 980, 1860 860 S 2890 680, 3400 760",
+    "M 440 820 C 930 750, 1420 700, 1920 590 S 2870 450, 3340 510",
   ];
   return paths.map((path) => `<path class="contour-line" d="${path}" />`).join("");
 }
@@ -276,11 +287,12 @@ function buildWindStreams() {
   }
   const windTo = (state.wind.direction_deg + 180) % 360;
   const rows = [
-    [300, 260],
-    [620, 420],
-    [1020, 620],
-    [1380, 830],
-    [1760, 1050],
+    [340, 280],
+    [760, 520],
+    [1240, 760],
+    [1840, 1080],
+    [2520, 1440],
+    [3080, 1840],
   ];
   return rows
     .map(([x, y], index) => {
@@ -463,8 +475,8 @@ function focusOnRouteIfNeeded() {
   if (!state.routeResult || !state.routeResult.route.coordinates.length) {
     return;
   }
-  const xs = state.routeResult.route.coordinates.map((coordinate) => pointToWorld({ lat: coordinate[1], lng: coordinate[0] })[0]);
-  const ys = state.routeResult.route.coordinates.map((coordinate) => pointToWorld({ lat: coordinate[1], lng: coordinate[0] })[1]);
+  const xs = state.routeResult.route.coordinates.map((coordinate) => pointToWorld({ lat: coordinate[1], lng: coordinate[0] })[0] * state.mapScale);
+  const ys = state.routeResult.route.coordinates.map((coordinate) => pointToWorld({ lat: coordinate[1], lng: coordinate[0] })[1] * state.mapScale);
   const padding = 140 * state.mapScale;
   const minX = Math.max(0, Math.min(...xs) - padding);
   const maxX = Math.min(MAP_WIDTH * state.mapScale, Math.max(...xs) + padding);
@@ -517,30 +529,30 @@ function updateWindOverlay() {
     return;
   }
   windOverlay.classList.remove("hidden");
-  windArrow.style.transform = `rotate(${state.wind.direction_deg}deg)`;
+  windArrow.style.transform = `rotate(${(state.wind.direction_deg + 180) % 360}deg)`;
   windOverlayTitle.textContent = `Wind from ${cardinalDirection(state.wind.direction_deg)}`;
   windOverlayText.textContent = `${state.wind.direction_deg} deg at ${state.wind.speed_mps} m/s${state.wind.source ? `, ${state.wind.source}` : ""}`;
 }
 
 function pointToWorld(point) {
   const { south, west, north, east } = state.mapData.bbox;
-  const x = ((point.lng - west) / (east - west)) * MAP_WIDTH * state.mapScale;
-  const y = (MAP_HEIGHT - (((point.lat - south) / (north - south)) * MAP_HEIGHT)) * state.mapScale;
+  const x = ((point.lng - west) / (east - west)) * MAP_WIDTH;
+  const y = MAP_HEIGHT - (((point.lat - south) / (north - south)) * MAP_HEIGHT);
   return [x, y];
 }
 
 function worldToPoint(worldX, worldY) {
   const { south, west, north, east } = state.mapData.bbox;
   return {
-    lng: west + ((worldX / state.mapScale) / MAP_WIDTH) * (east - west),
-    lat: south + (((MAP_HEIGHT - (worldY / state.mapScale)) / MAP_HEIGHT) * (north - south)),
+    lng: west + (worldX / MAP_WIDTH) * (east - west),
+    lat: south + (((MAP_HEIGHT - worldY) / MAP_HEIGHT) * (north - south)),
   };
 }
 
 function screenToPoint(clientX, clientY) {
   const rect = mapSvg.getBoundingClientRect();
-  const svgX = clientX - rect.left;
-  const svgY = clientY - rect.top;
+  const svgX = ((clientX - rect.left) / rect.width) * MAP_WIDTH;
+  const svgY = ((clientY - rect.top) / rect.height) * MAP_HEIGHT;
   return worldToPoint(svgX, svgY);
 }
 
@@ -561,6 +573,12 @@ function getCssVar(name) {
 function handlePointerDown(event) {
   const markerGroup = event.target.closest(".marker");
   if (!markerGroup) {
+    state.tapGesture = {
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: mapScroll.scrollLeft,
+      scrollTop: mapScroll.scrollTop,
+    };
     return;
   }
   state.dragTarget = {
@@ -583,11 +601,21 @@ function handlePointerUp(event) {
     if (event.target.closest(".marker")) {
       return;
     }
-    placePointFromScreen(event.clientX, event.clientY);
+    const tapGesture = state.tapGesture;
+    state.tapGesture = null;
+    if (!tapGesture) {
+      return;
+    }
+    const moved = Math.hypot(event.clientX - tapGesture.startX, event.clientY - tapGesture.startY);
+    const scrolled = Math.hypot(mapScroll.scrollLeft - tapGesture.scrollLeft, mapScroll.scrollTop - tapGesture.scrollTop);
+    if (moved < 10 && scrolled < 10) {
+      placePointFromScreen(event.clientX, event.clientY);
+    }
     return;
   }
   assignDraggedPoint(screenToPoint(event.clientX, event.clientY));
   state.dragTarget = null;
+  state.tapGesture = null;
   queueRouteUpdate();
   render();
 }
